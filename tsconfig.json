@@ -1,0 +1,16 @@
+{
+    "compilerOptions": {
+        "rootDir": "src",
+        "incremental": true,
+        "target": "ESNext",
+        "module": "NodeNext",
+        "moduleResolution": "NodeNext",
+        "allowSyntheticDefaultImports": true,
+    },
+    "ts-node": {
+        "esm": true,
+        "compilerOptions": {
+            "module": "Node16"
+        }
+    }
+}
