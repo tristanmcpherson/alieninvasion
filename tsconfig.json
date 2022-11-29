@@ -6,6 +6,7 @@
         "module": "NodeNext",
         "moduleResolution": "NodeNext",
         "allowSyntheticDefaultImports": true,
+        "outDir": "build"
     },
     "ts-node": {
         "esm": true,
