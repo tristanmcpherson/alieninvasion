@@ -2,5 +2,5 @@
     "watch": ["src"],
     "ext": ".ts,.js",
     "ignore": [],
-    "exec": "ts-node-esm ./src/server.ts"
+    "exec": "env-cmd -f .env.local ts-node-esm ./src/server.ts"
   }

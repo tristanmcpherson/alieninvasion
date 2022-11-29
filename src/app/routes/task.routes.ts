@@ -3,7 +3,7 @@ import { findAll } from "../controllers/task.controller.js";
 
 export const setupTaskRoutes = (app: Express) => {
   const router = Router();
-  router.get("/", findAll);
+  router.get("/:lobbyId/:playerId", findAll);
 
   app.use('/api/task', router);
   return app;

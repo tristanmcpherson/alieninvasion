@@ -11,7 +11,7 @@ const schema = new Schema<ILobby>(
         _id: { type: String },
         players: [{ type: String }]
     },
-    { timestamps: true }
+    { timestamps: true, writeConcern: { w: "majority" } }
 );
 export const TaskModel = model<ILobby>("lobby", schema);
 export default TaskModel;

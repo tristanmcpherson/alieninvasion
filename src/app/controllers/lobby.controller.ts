@@ -21,3 +21,7 @@ export const createLobby = async (playerId: string) => {
 export const getLobby = async (playerId: string) => {
     return await db.getCurrentLobby(playerId);
 } 
+
+export const deleteLobby = async (lobbyId: string) => {
+    return await db.deleteLobby(lobbyId);
+}

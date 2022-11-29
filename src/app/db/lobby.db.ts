@@ -52,9 +52,13 @@ export const getCurrentLobby = async (playerId: string) => {
 };
 
 export const playerInLobby = async (_id: string, playerId: string) => {
-    return await LobbyModel.count({ _id, players: { $in: [playerId] } });
+    return await LobbyModel.count({ _id, players: { $in: playerId } }) > 0;
 };
 
 export const leaveLobby = async (_id: string, playerId: string) => {
     return await LobbyModel.updateOne({ _id }, { $pull: { players: playerId } });
 };
+
+export const deleteLobby = async (lobbyId: string) => {
+    return await LobbyModel.deleteOne({ _id: lobbyId });
+}
