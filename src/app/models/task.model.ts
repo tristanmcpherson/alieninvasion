@@ -5,7 +5,8 @@ export interface ITask {
   lobbyId: string,
   name: string,
   description: string,
-  completed: boolean
+  completed: boolean,
+  updatedAt?: Date
 }
 export const TaskModel = model<ITask, Model<ITask>>(
   "task",
@@ -15,7 +16,9 @@ export const TaskModel = model<ITask, Model<ITask>>(
       lobbyId: { type: String, index: true },
       name: { type: String },
       description: { type: String, required: true },
-      completed: { type: Boolean, default: false }
+      completed: { type: Boolean, default: false },
+	  // should delete after an hour of no updates
+	  updatedAt: { type: Date, expires: 3600 }
     },
     { timestamps: true }
   )

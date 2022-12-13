@@ -1,5 +1,5 @@
 
-import e from "express";
+import e, { NextFunction } from "express";
 import bodyparser from "body-parser";
 import * as fs from "fs";
 import * as https from "node:https";
@@ -24,26 +24,37 @@ config();
 
 const app = e();
 
-if (!process.env.CONNECTION_URL) {
-  console.log("Missing connection url");
-  process.exit();
-}
-const mongoUrl = process.env.CONNECTION_URL;
+export const setupMongo = async () => {
+  if (!process.env.CONNECTION_URL) {
+    console.log("Missing connection url");
+    process.exit();
+  }
+  const mongoUrl = process.env.CONNECTION_URL;
+  
+  try {
+    await connect(mongoUrl, { connectTimeoutMS: 5000, serverSelectionTimeoutMS: 5000 });
+    console.log("Connected to db");
+  } catch (err) {
+    console.log(err);
+    console.log("No DB!");
+    process.exit();
+  }
+};
+await setupMongo();
 
-try {
-  await connect(mongoUrl, { connectTimeoutMS: 5000, serverSelectionTimeoutMS: 5000 });
-  console.log("Connected to db");
-} catch (err) {
-  console.log(err);
-  console.log("No DB!");
-  process.exit();
-}
+// const runWorker = () => {
+//   register();
+//   const workerPath = path.resolve(__dirname, workerData.__fileName);
+//   new Worker(workerPath);
+// };
+// runWorker();
 
 const key = fs.readFileSync(process.env.KEY);
 const cert = fs.readFileSync(process.env.CERT);
+const origin = JSON.parse(process.env.ORIGIN) as string[];
 
 const corsOptions: CorsOptions = {
-  origin: [process.env.ORIGIN]
+  origin: origin
 };
 
 app.use(cors(corsOptions));
@@ -60,13 +71,14 @@ setupTestRoutes(app);
 // Serve up static index for any other request to satisfy react-router
 app.get('*', (_, res) => res.sendFile("./public/index.html", { root }));
 
-
 const port = Number(process.env.PORT) || 8080;
 const host = process.env.HOST || "0.0.0.0";
 
 const server = https.createServer({ key, cert }, app);
 
-setupSocketIO(server, corsOptions)
+setupSocketIO(server, corsOptions);
+
+
 
 server.listen(port, host, () => {
   console.log(`Server is running on port ${host}:${port}`);

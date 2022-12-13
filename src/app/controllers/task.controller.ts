@@ -8,10 +8,10 @@ export const getTasks = async (lobbyId: string) => {
 };
 
 export async function findAll(req: Request, res: Response) {
-  const lobby = req.params.lobbyId;
+  const lobbyId = req.params.lobbyId;
   const playerId = req.params.playerId;
 
-  if (!lobby) {
+  if (!lobbyId) {
     res.status(400).send({ message: "Room id can't be empty" });
     return;
   }
@@ -27,15 +27,17 @@ export async function findAll(req: Request, res: Response) {
     return;
   }
 
-  if (!await lobbyDb.playerInLobby(lobby, playerId)) {
+  if (!await lobbyDb.playerInLobby(lobbyId, playerId)) {
     if (currLobby) {
+      console.log("Mismatch lobby");
       console.log(JSON.stringify(currLobby));
+      console.log(lobbyId);
     }
     res.status(400).send({ message: "You are not authorized to pull this lobby" });
     return;
   }
 
-  const data = await getTasks(lobby);
+  const data = await getTasks(lobbyId);
 
   if (data.length === 0) {
     res.status(404).send();
