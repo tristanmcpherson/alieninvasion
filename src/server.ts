@@ -5,7 +5,7 @@ import * as fs from "fs";
 import * as https from "node:https";
 import cors, { CorsOptions } from "cors";
 import { config } from "dotenv";
-import { connect } from "mongoose";
+import mongoose, { connect } from "mongoose";
 import { setupTaskRoutes } from "./app/routes/task.routes.js";
 import { setupSocketIO } from './app/socketio/handler.js';
 import { setupTestRoutes } from './app/routes/test.routes.js';
@@ -23,6 +23,10 @@ export const root = __dirname;
 config();
 
 const app = e();
+
+mongoose.set("debug", (collectionName, method, query, doc) => {
+  console.log(`${collectionName}.${method}`, JSON.stringify(query), doc);
+});
 
 export const setupMongo = async () => {
   if (!process.env.CONNECTION_URL) {

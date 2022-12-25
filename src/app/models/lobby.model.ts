@@ -1,4 +1,4 @@
-import { Schema, model } from 'mongoose';
+import { Schema, model, Model } from 'mongoose';
 import { IPlayer, playerSchema } from './player.model.js';
 
 export interface ILobby {
@@ -8,14 +8,16 @@ export interface ILobby {
     updatedAt: Date
 }
 
-const schema = new Schema<ILobby>(
+type LobbyModelType = Model<ILobby, {}, {}>
+
+const schema = new Schema<ILobby, LobbyModelType, {}>(
     {
         _id: { type: String },
         players: [{ type: playerSchema }],
 		updatedAt: { type: Date, expires: 3600 }
-    },
-    { timestamps: true, writeConcern: { w: "majority" } }
+    }, 
+    { timestamps: true }
 );
 schema.index({ "_id": 1, "players.name": 1 }, { unique: true });
-export const TaskModel = model<ILobby>("lobby", schema);
-export default TaskModel;
+export const LobbyModel = model<ILobby, LobbyModelType>("lobby", schema);
+export default LobbyModel;

@@ -15,6 +15,7 @@
   "author": "shredder8910@gmail.com",
   "license": "ISC",
   "dependencies": {
+    "@types/mongoose": "^5.11.97",
     "body-parser": "^1.20.1",
     "cors": "^2.8.5",
     "dotenv": "^16.0.3",

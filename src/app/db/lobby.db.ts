@@ -67,3 +67,11 @@ export const leaveLobby = async (_id: string, playerId: string) => {
 export const deleteLobby = async (lobbyId: string) => {
 	return await LobbyModel.deleteOne({ _id: lobbyId });
 };
+
+export const updatePlayer = async (lobbyId: string, playerId: string, characterId: string) => {
+	return await LobbyModel.updateOne({ _id: lobbyId, "players._id": playerId }, { $set: { "players.$.character": characterId }});
+};
+
+export const updatePlayerId = async (lobbyId: string, playerId: string, newPlayerId: string) => {
+	 return await LobbyModel.findOneAndUpdate({ _id: lobbyId, players: { _id: playerId }}, { $set: { "players.$._id": newPlayerId }}, { new: true });
+};

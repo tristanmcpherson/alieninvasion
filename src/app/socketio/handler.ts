@@ -8,6 +8,7 @@ import * as db from "../db/task.db.js";
 import { getMasterTasks } from "../controllers/masterTask.controller.js";
 import { getTasks } from "../controllers/task.controller.js";
 import { IPlayer } from '../models/player.model.js';
+import { updatePlayerCharacter, updatePlayerId } from '../controllers/lobby.controller.js';
 
 export interface SharedEvents {
 	assemble: () => void;
@@ -17,14 +18,17 @@ export interface SharedEvents {
 
 export interface ClientEvents extends SharedEvents {
 	joinLobby: (lobbyId: string, name: string) => void;
+	rejoinLobby: (lobbyId: string, oldPlayerId: string) => void;
 	createLobby: (name: String) => void;
+	characterSelected: (characterId: string) => void;
+	startGame: () => void;
 }
 
 export interface ServerEvents extends SharedEvents {
 	lobbyJoined: (lobby: ILobby, player: IPlayer) => void;
 	lobbyLeft: (playerId: string) => void;
 	startGame: (tasks: ITask[]) => void;
-	characterSelected: (player: IPlayer) => void;
+	characterSelected: (playerId: string, characterId: string) => void;
 }
 
 export const setupSocketIO = (server: https.Server, corsOptions: CorsOptions) => {
@@ -52,6 +56,24 @@ export const setupSocketIO = (server: https.Server, corsOptions: CorsOptions) =>
 			console.log(`Incoming WS connection: ${ip}:${socket.id}`);
 		}
 
+		socket.on("rejoinLobby", async (lobbyId, lastPlayerId) => {
+			// ... this may be costly?
+			// I guess just update the one with old id to new id?
+			console.log(`Processing rejoin for ${lastPlayerId} to ${socket.id}`);
+			
+			const lobby = await updatePlayerId(lobbyId, lastPlayerId, socket.id);
+
+			if (!lobby) {
+				console.error("Could not process rejoin! Kicking from lobby");
+				socket.emit("lobbyLeft", socket.id);
+			}
+
+			// find better way to replace player in lobby,
+			// probably updatePlayer and divorce frontend id from playerid (?) so that the update is seamless in React 
+			io.to(lobby._id).emit("lobbyLeft", lastPlayerId);
+			io.to(lobby._id).emit("lobbyJoined", lobby, lobby.players.find(p => p._id === socket.id));
+		});
+
 
 		socket.on("disconnect", async () => {
 			// TODO: set ttl after all disconnect, then gracefully
@@ -66,9 +88,6 @@ export const setupSocketIO = (server: https.Server, corsOptions: CorsOptions) =>
 				console.warn(`Assemble received but no lobby`)
 				return;
 			}
-
-			console.log(io.sockets.adapter.rooms);
-			console.log(io.sockets.adapter.rooms.get(lobby._id));
 
 			io.to(lobby._id).emit("assemble");
 		});
@@ -91,7 +110,7 @@ export const setupSocketIO = (server: https.Server, corsOptions: CorsOptions) =>
 				completed: updated.completed
 			};
 
-			io.in(lobby._id).emit("updateTaskStatus", updatedMessage);
+			io.to(lobby._id).emit("updateTaskStatus", updatedMessage);
 			console.log("Sent update to " + updated.completed);
 		});
 
@@ -110,8 +129,20 @@ export const setupSocketIO = (server: https.Server, corsOptions: CorsOptions) =>
 			io.in(lobby._id).emit("lobbyJoined", lobby, { _id: socket.id, name: name, character: null });
 		});
 
+		socket.on("characterSelected", async (characterId) => {
+			const lobby = await getLobby(socket.id) as ILobby;
+			if (!lobby) {
+				console.warn("Socket is not in a lobby");
+				// tell client they are in a bad lobby
+				socket.emit("lobbyLeft", socket.id);
+				return;
+			}
+			await updatePlayerCharacter(lobby._id, socket.id, characterId);
+			io.in(lobby._id).emit("characterSelected", socket.id, characterId);
+		});
+
 		socket.on("createLobby", async (name: string) => {
-			const player = { _id: socket.id, name, character: null };
+			const player: IPlayer = { _id: socket.id, name, character: null };
 			const newLobby = await createLobby(player, socket);
 			const masterTasks = await getMasterTasks();
 
@@ -131,6 +162,23 @@ export const setupSocketIO = (server: https.Server, corsOptions: CorsOptions) =>
 
 			socket.join(newLobby._id);
 			socket.emit("lobbyJoined", newLobby, { _id: socket.id, name, character: null });
+		});
+
+		socket.on("startGame", async () => {
+			const lobby = await getLobby(socket.id);
+			if (!lobby) {
+				return;
+			};
+
+			if (!lobby.players.every(player => player.character !== null)) {
+				return;
+			}
+
+			const tasks = await getTasks(lobby._id);
+
+			// add concept of a leader and ready up for other players?
+
+			io.to(lobby._id).emit("startGame", tasks);
 		});
 	});
 };

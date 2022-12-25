@@ -15,11 +15,11 @@ export const disconnectPlayerIfInLobby = async (playerId: string, socket: Socket
 			socket.leave(currentLobby._id);
 		}
 		// we're the last player
-		if (currentLobby.players.length === 1) {
-			await deleteLobby(currentLobby._id);
-		} else {
-			await leaveLobby(currentLobby._id, playerId);
-		}
+		//if (currentLobby.players.length === 1) {
+		//	await deleteLobby(currentLobby._id);
+		//} else {
+		await leaveLobby(currentLobby._id, playerId);
+		//}
 	}
 
     return null;
@@ -27,10 +27,11 @@ export const disconnectPlayerIfInLobby = async (playerId: string, socket: Socket
 
 export const joinLobby = async (player: IPlayer, lobbyId: string, socket: Socket): Promise<[newLobby: ILobby, oldLobby: ILobby]> => {
     const oldLobby = await disconnectPlayerIfInLobby(player._id, socket);
-    return [await db.joinLobby(lobbyId, player), oldLobby];
+	const lobby = await db.joinLobby(lobbyId, player);
+    return [lobby.toObject(), oldLobby];
 }
 
-export const leaveLobby = async (playerId: string, lobbyId: string) => {
+export const leaveLobby = async (lobbyId: string, playerId: string) => {
     return await db.leaveLobby(lobbyId, playerId);
 }
 
@@ -41,7 +42,15 @@ export const createLobby = async (player: IPlayer, socket: Socket) => {
 
 export const getLobby = async (playerId: string) => {
     return await db.getCurrentLobby(playerId);
-} 
+}
+
+export const updatePlayerCharacter = async (lobbyId: string, playerId: string, characterId: string) => {
+	return await db.updatePlayer(lobbyId, playerId, characterId);
+}
+
+export const updatePlayerId = async (lobbyId: string, playerId: string, newPlayerId: string) => {
+	return await db.updatePlayerId(lobbyId, playerId, newPlayerId);
+}
 
 export const deleteLobby = async (lobbyId: string) => {
     return await db.deleteLobby(lobbyId);
