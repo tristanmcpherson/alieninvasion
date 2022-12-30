@@ -10,6 +10,14 @@ import { getTasks } from "../controllers/task.controller.js";
 import { IPlayer } from '../models/player.model.js';
 import { updatePlayerCharacter, updatePlayerId } from '../controllers/lobby.controller.js';
 
+export type Faction = "crewmate" | "fartian";
+
+export interface IGameConfig {
+	numberOfFartians: number;
+	// room name configuration
+	// store in local storage aggressively
+}
+
 export interface SharedEvents {
 	assemble: () => void;
 	updateTaskStatus: (task: ITask) => void;
@@ -21,13 +29,13 @@ export interface ClientEvents extends SharedEvents {
 	rejoinLobby: (lobbyId: string, oldPlayerId: string) => void;
 	createLobby: (name: String) => void;
 	characterSelected: (characterId: string) => void;
-	startGame: () => void;
+	startGame: (gameConfig: IGameConfig) => void;
 }
 
 export interface ServerEvents extends SharedEvents {
 	lobbyJoined: (lobby: ILobby, player: IPlayer) => void;
 	lobbyLeft: (playerId: string) => void;
-	startGame: (tasks: ITask[]) => void;
+	startGame: (tasks: ITask[], faction: Faction) => void;
 	characterSelected: (playerId: string, characterId: string) => void;
 }
 
@@ -60,7 +68,7 @@ export const setupSocketIO = (server: https.Server, corsOptions: CorsOptions) =>
 			// ... this may be costly?
 			// I guess just update the one with old id to new id?
 			console.log(`Processing rejoin for ${lastPlayerId} to ${socket.id}`);
-			
+
 			const lobby = await updatePlayerId(lobbyId, lastPlayerId, socket.id);
 
 			if (!lobby) {
@@ -68,12 +76,13 @@ export const setupSocketIO = (server: https.Server, corsOptions: CorsOptions) =>
 				socket.emit("lobbyLeft", socket.id);
 			}
 
-			// find better way to replace player in lobby,
-			// probably updatePlayer and divorce frontend id from playerid (?) so that the update is seamless in React 
-			io.to(lobby._id).emit("lobbyLeft", lastPlayerId);
-			io.to(lobby._id).emit("lobbyJoined", lobby, lobby.players.find(p => p._id === socket.id));
+			else {
+				// find better way to replace player in lobby,
+				// probably updatePlayer and divorce frontend id from playerid (?) so that the update is seamless in React 
+				io.to(lobby._id).emit("lobbyLeft", lastPlayerId);
+				io.to(lobby._id).emit("lobbyJoined", lobby, lobby.players.find(p => p._id === socket.id));
+			}
 		});
-
 
 		socket.on("disconnect", async () => {
 			// TODO: set ttl after all disconnect, then gracefully
@@ -120,7 +129,7 @@ export const setupSocketIO = (server: https.Server, corsOptions: CorsOptions) =>
 
 			// implement polling to wait for ready status on lobby
 			// ready status not set until tasks inserted
-			const [lobby] = await joinLobby({ _id: socket.id, name, character: null }, lobbyId, socket);
+			const lobby = await joinLobby({ _id: socket.id, name, character: null }, lobbyId, socket);
 			if (!lobby) {
 				return;
 			}
@@ -164,21 +173,38 @@ export const setupSocketIO = (server: https.Server, corsOptions: CorsOptions) =>
 			socket.emit("lobbyJoined", newLobby, { _id: socket.id, name, character: null });
 		});
 
-		socket.on("startGame", async () => {
+		socket.on("startGame", async (gameConfig: IGameConfig) => {
 			const lobby = await getLobby(socket.id);
 			if (!lobby) {
+				// disconnect socket, need to ensure ui display a disconnect toast or other
+				socket.emit("lobbyLeft", socket.id);
 				return;
 			};
 
 			if (!lobby.players.every(player => player.character !== null)) {
+				// emit message?
 				return;
 			}
 
 			const tasks = await getTasks(lobby._id);
 
-			// add concept of a leader and ready up for other players?
+			const playerLookup = new Map<string, Faction>();
+			let playerIdPool = lobby.players.map(player => player._id);
+			for (let i = 0; i < gameConfig.numberOfFartians; i++) {
+				const randomIndex = Math.round(Math.random() * playerIdPool.length);
+				const randomPlayer = playerIdPool[randomIndex];
+				playerLookup.set(randomPlayer, "fartian");
+				playerIdPool = playerIdPool.filter(playerId => playerId !== randomPlayer);
+			}
+			console.log(JSON.stringify(playerIdPool));
+			playerIdPool.forEach(playerId => playerLookup.set(playerId, "crewmate"));
 
-			io.to(lobby._id).emit("startGame", tasks);
+			for (let [playerId, faction] of playerLookup) {
+				// add concept of a leader and ready up for other players?
+				// simple check for first connected to lobby, set flag?
+
+				io.to(playerId).emit("startGame", tasks, faction);
+			}
 		});
 	});
 };

@@ -25,10 +25,13 @@ export const disconnectPlayerIfInLobby = async (playerId: string, socket: Socket
     return null;
 }
 
-export const joinLobby = async (player: IPlayer, lobbyId: string, socket: Socket): Promise<[newLobby: ILobby, oldLobby: ILobby]> => {
+export const joinLobby = async (player: IPlayer, lobbyId: string, socket: Socket): Promise<ILobby> => {
     const oldLobby = await disconnectPlayerIfInLobby(player._id, socket);
 	const lobby = await db.joinLobby(lobbyId, player);
-    return [lobby.toObject(), oldLobby];
+	if (!lobby) {
+		return null;
+	}
+    return lobby.toObject();
 }
 
 export const leaveLobby = async (lobbyId: string, playerId: string) => {
