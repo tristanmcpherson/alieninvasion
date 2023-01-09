@@ -24,7 +24,7 @@
     "express-ws": "^5.0.2",
     "https": "^1.0.0",
     "mongoose": "^6.7.3",
-    "socket.io": "^4.5.4",
+    "socket.io": "4.5.x",
     "threads": "^1.7.0",
     "ws": "^8.11.0"
   },

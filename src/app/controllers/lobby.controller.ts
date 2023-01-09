@@ -2,11 +2,9 @@ import * as db from '../db/lobby.db.js';
 import { IPlayer } from '../models/player.model.js';
 import { ILobby } from '../models/lobby.model.js';
 import { Socket } from 'socket.io';
+import { Faction } from '../socketio/handler.js';
 
 export const disconnectPlayerIfInLobby = async (playerId: string, socket: Socket) => {
-
-	
-
     const currentLobby = await db.getCurrentLobby(playerId);
     if (currentLobby) {
 		// maybe call from http endpoint?
@@ -53,6 +51,10 @@ export const updatePlayerCharacter = async (lobbyId: string, playerId: string, c
 
 export const updatePlayerId = async (lobbyId: string, playerId: string, newPlayerId: string) => {
 	return await db.updatePlayerId(lobbyId, playerId, newPlayerId);
+}
+
+export const updatePlayerFaction = async (lobbyId: string, playerId: string, faction: Faction) => {
+	return await db.updatePlayerFaction(lobbyId, playerId, faction);
 }
 
 export const deleteLobby = async (lobbyId: string) => {

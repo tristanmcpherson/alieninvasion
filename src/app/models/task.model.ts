@@ -3,6 +3,7 @@ import { Schema, model, Model } from 'mongoose';
 export interface ITask {
   id: string,
   lobbyId: string,
+  assignedTo?: string,
   name: string,
   description: string,
   completed: boolean,
@@ -14,6 +15,7 @@ export const TaskModel = model<ITask, Model<ITask>>(
     {
       id: { type: String },
       lobbyId: { type: String, index: true },
+      assignedTo: { type: String },
       name: { type: String },
       description: { type: String, required: true },
       completed: { type: Boolean, default: false },

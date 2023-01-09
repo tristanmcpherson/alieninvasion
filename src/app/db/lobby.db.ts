@@ -1,5 +1,6 @@
 import LobbyModel from "../models/lobby.model.js"
 import { IPlayer } from "../models/player.model.js";
+import { Faction } from "../socketio/handler.js";
 
 const CHARSET = 'ABCDEFGHIJKLMNOPQRSTUWXYZ';
 const CODE_LENGTH = 6;
@@ -73,5 +74,9 @@ export const updatePlayer = async (lobbyId: string, playerId: string, characterI
 };
 
 export const updatePlayerId = async (lobbyId: string, playerId: string, newPlayerId: string) => {
-	 return await LobbyModel.findOneAndUpdate({ _id: lobbyId, players: { _id: playerId }}, { $set: { "players.$._id": newPlayerId }}, { new: true });
+	 return await LobbyModel.findOneAndUpdate({ _id: lobbyId, "players._id": playerId }, { $set: { "players.$._id": newPlayerId }}, { new: true });
+};
+
+export const updatePlayerFaction = async (lobbyId: string, playerId: string, faction: Faction) => {
+	return await LobbyModel.updateOne({ _id: lobbyId, "players._id": playerId }, { $set: { "players.$.faction": faction }});
 };

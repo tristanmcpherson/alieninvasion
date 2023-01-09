@@ -2,7 +2,7 @@ import { Server, Socket } from "socket.io";
 import { ITask, TaskModel } from "../models/task.model.js";
 import { CorsOptions } from "cors";
 import https from "https";
-import { createLobby, getLobby, joinLobby, disconnectPlayerIfInLobby } from "../controllers/lobby.controller.js";
+import { createLobby, getLobby, joinLobby, disconnectPlayerIfInLobby, updatePlayerFaction } from "../controllers/lobby.controller.js";
 import { ILobby } from "../models/lobby.model.js";
 import * as db from "../db/task.db.js";
 import { getMasterTasks } from "../controllers/masterTask.controller.js";
@@ -27,6 +27,7 @@ export interface SharedEvents {
 export interface ClientEvents extends SharedEvents {
 	joinLobby: (lobbyId: string, name: string) => void;
 	rejoinLobby: (lobbyId: string, oldPlayerId: string) => void;
+	leaveGame: () => void;
 	createLobby: (name: String) => void;
 	characterSelected: (characterId: string) => void;
 	startGame: (gameConfig: IGameConfig) => void;
@@ -36,6 +37,7 @@ export interface ServerEvents extends SharedEvents {
 	lobbyJoined: (lobby: ILobby, player: IPlayer) => void;
 	lobbyLeft: (playerId: string) => void;
 	startGame: (tasks: ITask[], faction: Faction) => void;
+	rejoinGame: (lobby: ILobby, tasks: ITask[], faction: Faction|null) => void;
 	characterSelected: (playerId: string, characterId: string) => void;
 }
 
@@ -65,8 +67,6 @@ export const setupSocketIO = (server: https.Server, corsOptions: CorsOptions) =>
 		}
 
 		socket.on("rejoinLobby", async (lobbyId, lastPlayerId) => {
-			// ... this may be costly?
-			// I guess just update the one with old id to new id?
 			console.log(`Processing rejoin for ${lastPlayerId} to ${socket.id}`);
 
 			const lobby = await updatePlayerId(lobbyId, lastPlayerId, socket.id);
@@ -77,15 +77,27 @@ export const setupSocketIO = (server: https.Server, corsOptions: CorsOptions) =>
 			}
 
 			else {
+				const currentPlayer = lobby.players.find(p => p._id === socket.id);
+				const tasks = await getTasks(lobby._id) ?? [];
+
+				console.log("Sending rejoin messages");
 				// find better way to replace player in lobby,
-				// probably updatePlayer and divorce frontend id from playerid (?) so that the update is seamless in React 
-				io.to(lobby._id).emit("lobbyLeft", lastPlayerId);
-				io.to(lobby._id).emit("lobbyJoined", lobby, lobby.players.find(p => p._id === socket.id));
+				// probably updatePlayer and divorce frontend id from playerid (?) so that the update is seamless in React
+
+				socket.join(lobby._id);
+				io.in(lobby._id).emit("lobbyLeft", lastPlayerId);
+
+				socket.emit("rejoinGame", lobby, tasks, currentPlayer.faction);
+				
 			}
 		});
 
 		socket.on("disconnect", async () => {
-			// TODO: set ttl after all disconnect, then gracefully
+			console.log("disconnect from: " + socket.id);
+			//await disconnectPlayerIfInLobby(socket.id, socket);
+		});
+
+		socket.on("leaveGame", async () => {
 			await disconnectPlayerIfInLobby(socket.id, socket);
 		});
 
@@ -102,7 +114,6 @@ export const setupSocketIO = (server: https.Server, corsOptions: CorsOptions) =>
 		});
 
 		socket.on("updateTaskStatus", async (task) => {
-			//console.log("Status update: " + JSON.stringify(data));
 			const lobby = await getLobby(socket.id);
 			if (!lobby) {
 				console.info("can't change task if not in a lobby");
@@ -126,16 +137,13 @@ export const setupSocketIO = (server: https.Server, corsOptions: CorsOptions) =>
 		socket.on("error", err => console.log("WS Error: " + err));
 
 		socket.on("joinLobby", async (lobbyId, name) => {
-
-			// implement polling to wait for ready status on lobby
-			// ready status not set until tasks inserted
-			const lobby = await joinLobby({ _id: socket.id, name, character: null }, lobbyId, socket);
+			const lobby = await joinLobby({ _id: socket.id, name, character: null, faction: null }, lobbyId, socket);
 			if (!lobby) {
 				return;
 			}
 
 			socket.join(lobbyId);
-			io.in(lobby._id).emit("lobbyJoined", lobby, { _id: socket.id, name: name, character: null });
+			io.in(lobby._id).emit("lobbyJoined", lobby, { _id: socket.id, name: name, character: null, faction: null });
 		});
 
 		socket.on("characterSelected", async (characterId) => {
@@ -151,7 +159,7 @@ export const setupSocketIO = (server: https.Server, corsOptions: CorsOptions) =>
 		});
 
 		socket.on("createLobby", async (name: string) => {
-			const player: IPlayer = { _id: socket.id, name, character: null };
+			const player: IPlayer = { _id: socket.id, name, character: null, faction: null };
 			const newLobby = await createLobby(player, socket);
 			const masterTasks = await getMasterTasks();
 
@@ -170,7 +178,7 @@ export const setupSocketIO = (server: https.Server, corsOptions: CorsOptions) =>
 			await TaskModel.insertMany(tasks);
 
 			socket.join(newLobby._id);
-			socket.emit("lobbyJoined", newLobby, { _id: socket.id, name, character: null });
+			socket.emit("lobbyJoined", newLobby, { _id: socket.id, name, character: null, faction: null });
 		});
 
 		socket.on("startGame", async (gameConfig: IGameConfig) => {
@@ -181,7 +189,7 @@ export const setupSocketIO = (server: https.Server, corsOptions: CorsOptions) =>
 				return;
 			};
 
-			if (!lobby.players.every(player => player.character !== null)) {
+			if (lobby.players.some(player => player.character === null)) {
 				// emit message?
 				return;
 			}
@@ -190,19 +198,26 @@ export const setupSocketIO = (server: https.Server, corsOptions: CorsOptions) =>
 
 			const playerLookup = new Map<string, Faction>();
 			let playerIdPool = lobby.players.map(player => player._id);
+			console.log(`Selecting faction out of ${playerIdPool.length} players`);
+
 			for (let i = 0; i < gameConfig.numberOfFartians; i++) {
-				const randomIndex = Math.round(Math.random() * playerIdPool.length);
+				const randomIndex = Math.floor(Math.random() * playerIdPool.length);
+				console.log(`Selecting crewmate ${randomIndex}`);
+
 				const randomPlayer = playerIdPool[randomIndex];
 				playerLookup.set(randomPlayer, "fartian");
 				playerIdPool = playerIdPool.filter(playerId => playerId !== randomPlayer);
 			}
 			console.log(JSON.stringify(playerIdPool));
+
+
 			playerIdPool.forEach(playerId => playerLookup.set(playerId, "crewmate"));
 
 			for (let [playerId, faction] of playerLookup) {
 				// add concept of a leader and ready up for other players?
 				// simple check for first connected to lobby, set flag?
 
+				await updatePlayerFaction(lobby._id, playerId, faction);
 				io.to(playerId).emit("startGame", tasks, faction);
 			}
 		});

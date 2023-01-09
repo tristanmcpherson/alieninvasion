@@ -17,3 +17,7 @@ export async function upsertByName(id: string, lobbyId: string, task: ITask) {
 
     return await TaskModel.findOneAndReplace({ id: id, lobbyId }, updatedTask, { new: true });
 }
+
+export async function getIncompleteTask(lobbyId: string) {
+    return await TaskModel.findOne({ lobbyId: lobbyId, completed: false });
+}
